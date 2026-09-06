@@ -3,7 +3,7 @@
 package dragout
 
 /*
-#cgo LDFLAGS: -lole32 -lshell32 -luuid -luser32
+#cgo LDFLAGS: -lole32 -lshell32 -luuid -luser32 -lgdi32
 #include "dragout_windows.h"
 */
 import "C"
