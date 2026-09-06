@@ -1,0 +1,11 @@
+//go:build (!darwin && !linux) || !cgo
+
+package dragout
+
+import "unsafe"
+
+// Begin delivers completion on the UI thread after the synchronous backend returns.
+func Begin(window unsafe.Pointer, paths []string, complete func(Result, error)) {
+	result, err := start(window, paths)
+	complete(result, err)
+}
