@@ -8,7 +8,7 @@ The root `dragout` package implements Windows OLE, macOS AppKit, and Linux GTK3 
 
 Windows and macOS were manually verified in Clustta before extraction. Linux is experimental: native compilation and X11/Wayland desktop testing remain pending. Automated tests do not simulate user-driven OS drops. The public module is published as a preview. Linux remains unverified.
 
-The module currently targets Go 1.25.8 and Wails `v3.0.0-alpha.56`, matching the host application at extraction. Wails alpha compatibility is intentionally pinned; newer versions need verification.
+The module targets Go 1.27.2 and Wails `v3.0.0-beta.32`. Windows tests pass with this version. Linux hosts must build Wails with the `gtk3` compatibility tag because the Linux drag backend uses GTK3.
 
 ## Wails usage
 
@@ -55,7 +55,7 @@ All supported native backends require cgo and the usual Wails platform toolchain
 | --- | --- | --- |
 | Windows | C compiler and Windows system libraries | OLE payload tests and prior Clustta manual checks |
 | macOS | Xcode command-line tools and Cocoa | Prior Clustta manual checks |
-| Linux | C compiler, pkg-config, GTK3 development files; WebKitGTK 4.1 for the Wails adapter | Pending |
+| Linux | C compiler, pkg-config, GTK3 development files; WebKitGTK 4.1 for Wails built with `gtk3` | Pending |
 
 ```sh
 go test ./...
