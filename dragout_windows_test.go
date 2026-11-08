@@ -49,6 +49,44 @@ func TestPreferredDropEffectFormatRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPerformedDropEffectFormatsRoundTrip(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	path := filepath.Join(t.TempDir(), "performed-effect.txt")
+	if err := os.WriteFile(path, []byte("fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name               string
+		logicalEffect      Effect
+		logicalAvailable   bool
+		performedEffect    Effect
+		performedAvailable bool
+	}{
+		{
+			name:               "optimized move",
+			logicalEffect:      EffectMove,
+			logicalAvailable:   true,
+			performedEffect:    EffectNone,
+			performedAvailable: true,
+		},
+		{
+			name:               "unoptimized move",
+			logicalAvailable:   false,
+			performedEffect:    EffectMove,
+			performedAvailable: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := probeDropEffectFormats([]string{path}, test.logicalEffect, test.logicalAvailable,
+				test.performedEffect, test.performedAvailable); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestEncodePathsRejectsInvalidInput(t *testing.T) {
 	for _, paths := range [][]string{nil, {"relative.blend"}, {"C:\\bad\x00.blend"}} {
 		if _, err := encodePaths(paths); err == nil {

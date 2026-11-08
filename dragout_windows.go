@@ -24,10 +24,10 @@ const (
 	nativeCancelled = 0x00040101
 )
 
-func startWithOptions(window unsafe.Pointer, paths []string, options Options) (Effect, error) {
+func startWithOptions(window unsafe.Pointer, paths []string, options Options) (Result, Effect, error) {
 	encoded, err := encodePaths(paths)
 	if err != nil {
-		return EffectNone, err
+		return "", EffectNone, err
 	}
 	var returnedEffect C.uint32_t
 	var logicalEffect C.uint32_t
@@ -48,19 +48,20 @@ func startWithOptions(window unsafe.Pointer, paths []string, options Options) (E
 	))
 	switch result {
 	case nativeDropped:
-		return resolveEffect(
+		returned := Effect(returnedEffect)
+		return legacyWindowsResult(true, returned), resolveEffect(
 			options.AllowedEffects,
 			true,
 			Effect(logicalEffect),
 			hasLogicalEffect != 0,
 			Effect(performedEffect),
 			hasPerformedEffect != 0,
-			Effect(returnedEffect),
+			returned&Effect(EffectSetAll),
 		), nil
 	case nativeCancelled:
-		return EffectNone, nil
+		return Cancelled, EffectNone, nil
 	default:
-		return EffectNone, fmt.Errorf("Windows could not drag the selected files (HRESULT 0x%08X)", result)
+		return "", EffectNone, fmt.Errorf("Windows could not drag the selected files (HRESULT 0x%08X)", result)
 	}
 }
 
@@ -105,4 +106,30 @@ func probePreferredEffect(paths []string, effect Effect) error {
 		return fmt.Errorf("Shell data object did not preserve preferred effect %d (HRESULT 0x%08X)", effect, result)
 	}
 	return nil
+}
+
+func probeDropEffectFormats(paths []string, logical Effect, hasLogical bool, performed Effect, hasPerformed bool) error {
+	encoded, err := encodePaths(paths)
+	if err != nil {
+		return err
+	}
+	result := uint32(C.clustta_probe_drop_effect_formats(
+		(*C.uint16_t)(unsafe.Pointer(&encoded[0])),
+		C.size_t(len(paths)),
+		C.uint32_t(logical),
+		boolToCInt32(hasLogical),
+		C.uint32_t(performed),
+		boolToCInt32(hasPerformed),
+	))
+	if result != 0 {
+		return fmt.Errorf("Shell data object did not preserve completion effects (HRESULT 0x%08X)", result)
+	}
+	return nil
+}
+
+func boolToCInt32(value bool) C.int32_t {
+	if value {
+		return 1
+	}
+	return 0
 }

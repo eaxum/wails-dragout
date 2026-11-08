@@ -70,8 +70,8 @@ static HRESULT fileDataObject(const uint16_t *paths, size_t count, IDataObject *
     return result;
 }
 
-static HRESULT setPreferredDropEffect(IDataObject *data, DWORD effect) {
-    FORMATETC format = {RegisterClipboardFormatW(L"Preferred DropEffect"), NULL,
+static HRESULT setDropEffect(IDataObject *data, const wchar_t *name, DWORD effect) {
+    FORMATETC format = {RegisterClipboardFormatW(name), NULL,
         DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
     if (!format.cfFormat) {
         DWORD error = GetLastError();
@@ -91,6 +91,10 @@ static HRESULT setPreferredDropEffect(IDataObject *data, DWORD effect) {
     HRESULT result = IDataObject_SetData(data, &format, &medium, TRUE);
     if (FAILED(result)) ReleaseStgMedium(&medium);
     return result;
+}
+
+static HRESULT setPreferredDropEffect(IDataObject *data, DWORD effect) {
+    return setDropEffect(data, L"Preferred DropEffect", effect);
 }
 
 static BOOL readDropEffect(IDataObject *data, const wchar_t *name, DWORD *effect) {
@@ -243,7 +247,7 @@ int32_t clustta_drag_files(uintptr_t handle, const uint16_t *paths, size_t count
                 result = setPreferredDropEffect(data, preferredEffect);
                 if (SUCCEEDED(result)) result = DoDragDrop(data, &source->base, allowedEffects, &effect);
                 if (result == DRAGDROP_S_DROP) {
-                    *returnedEffect = effect & validEffects;
+                    *returnedEffect = effect;
                     *hasLogicalEffect = readDropEffect(data, L"Logical Performed DropEffect", logicalEffect);
                     *hasPerformedEffect = readDropEffect(data, L"Performed DropEffect", performedEffect);
                 }
@@ -301,6 +305,34 @@ int32_t clustta_probe_preferred_effect(const uint16_t *paths, size_t count, uint
         }
         IDataObject_Release(data);
     }
+    OleUninitialize();
+    return result;
+}
+
+int32_t clustta_probe_drop_effect_formats(const uint16_t *paths, size_t count,
+    uint32_t logicalEffect, int32_t hasLogicalEffect,
+    uint32_t performedEffect, int32_t hasPerformedEffect) {
+    HRESULT result = OleInitialize(NULL);
+    if (FAILED(result)) return result;
+    IDataObject *data = NULL;
+    result = fileDataObject(paths, count, &data);
+    if (SUCCEEDED(result) && hasLogicalEffect) {
+        result = setDropEffect(data, L"Logical Performed DropEffect", logicalEffect);
+    }
+    if (SUCCEEDED(result) && hasPerformedEffect) {
+        result = setDropEffect(data, L"Performed DropEffect", performedEffect);
+    }
+    if (SUCCEEDED(result)) {
+        DWORD actual = DROPEFFECT_NONE;
+        BOOL available = readDropEffect(data, L"Logical Performed DropEffect", &actual);
+        if (available != (BOOL)hasLogicalEffect || (available && actual != logicalEffect)) result = E_FAIL;
+        if (SUCCEEDED(result)) {
+            actual = DROPEFFECT_NONE;
+            available = readDropEffect(data, L"Performed DropEffect", &actual);
+            if (available != (BOOL)hasPerformedEffect || (available && actual != performedEffect)) result = E_FAIL;
+        }
+    }
+    if (data) IDataObject_Release(data);
     OleUninitialize();
     return result;
 }

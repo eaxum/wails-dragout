@@ -6,6 +6,6 @@ import "unsafe"
 
 const Available = false
 
-func startWithOptions(window unsafe.Pointer, paths []string, options Options) (Effect, error) {
-	return EffectNone, ErrUnsupported
+func startWithOptions(window unsafe.Pointer, paths []string, options Options) (Result, Effect, error) {
+	return "", EffectNone, ErrUnsupported
 }

@@ -24,10 +24,10 @@ import (
 const Available = true
 
 // beginWithOptions starts a copy-only GTK session on the UI thread and completes after drag-end.
-func beginWithOptions(window unsafe.Pointer, paths []string, options Options, complete func(Effect, error)) {
+func beginWithOptions(window unsafe.Pointer, paths []string, options Options, complete func(Result, Effect, error)) {
 	uris, err := fileURIs(paths)
 	if err != nil {
-		complete(EffectNone, err)
+		complete("", EffectNone, err)
 		return
 	}
 	encoded := C.CString(strings.Join(uris, "\x00"))
@@ -61,18 +61,18 @@ func fileURIs(paths []string) ([]string, error) {
 //export clustta_linux_drag_completed
 func clustta_linux_drag_completed(callback C.uintptr_t, status C.int) {
 	handle := cgo.Handle(callback)
-	complete := handle.Value().(func(Effect, error))
+	complete := handle.Value().(func(Result, Effect, error))
 	handle.Delete()
 	switch status {
 	case C.ClusttaLinuxDragDropped:
-		complete(effectFromCopyOnlyResult(Dropped), nil)
+		complete(Dropped, effectFromCopyOnlyResult(Dropped), nil)
 	case C.ClusttaLinuxDragCancelled:
-		complete(effectFromCopyOnlyResult(Cancelled), nil)
+		complete(Cancelled, effectFromCopyOnlyResult(Cancelled), nil)
 	case C.ClusttaLinuxDragInvalidWindow:
-		complete(EffectNone, errors.New("dragging requires an active desktop window on the GTK main thread"))
+		complete("", EffectNone, errors.New("dragging requires an active desktop window on the GTK main thread"))
 	case C.ClusttaLinuxDragBusy:
-		complete(EffectNone, errors.New("a file drag is already in progress"))
+		complete("", EffectNone, errors.New("a file drag is already in progress"))
 	default:
-		complete(EffectNone, errors.New("Linux could not start dragging the selected files"))
+		complete("", EffectNone, errors.New("Linux could not start dragging the selected files"))
 	}
 }

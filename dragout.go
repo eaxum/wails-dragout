@@ -79,24 +79,31 @@ func BeginWithOptions(window unsafe.Pointer, paths []string, options Options, co
 		complete(EffectNone, err)
 		return
 	}
-	beginWithOptions(window, paths, options, complete)
+	beginWithOptions(window, paths, options, func(_ Result, effect Effect, err error) {
+		complete(effect, err)
+	})
 }
 
 // Begin starts a copy-only native drag and preserves the legacy completion result.
 func Begin(window unsafe.Pointer, paths []string, complete func(Result, error)) {
-	BeginWithOptions(window, paths, Options{
+	if !Available {
+		complete("", ErrUnsupported)
+		return
+	}
+	options := Options{
 		AllowedEffects:  EffectSetCopy,
 		PreferredEffect: EffectCopy,
-	}, func(effect Effect, err error) {
+	}
+	if err := validateOptions(options, SupportedEffects()); err != nil {
+		complete("", err)
+		return
+	}
+	beginWithOptions(window, paths, options, func(result Result, _ Effect, err error) {
 		if err != nil {
 			complete("", err)
 			return
 		}
-		if effect == EffectNone {
-			complete(Cancelled, nil)
-			return
-		}
-		complete(Dropped, nil)
+		complete(result, nil)
 	})
 }
 
@@ -141,4 +148,11 @@ func effectFromCopyOnlyResult(result Result) Effect {
 		return EffectCopy
 	}
 	return EffectNone
+}
+
+func legacyWindowsResult(dropped bool, returnedEffect Effect) Result {
+	if dropped && returnedEffect == EffectCopy {
+		return Dropped
+	}
+	return Cancelled
 }

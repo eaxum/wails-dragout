@@ -31,6 +31,27 @@ func TestCopyOnlyBackendResultMapsDropToCopy(t *testing.T) {
 	}
 }
 
+func TestLegacyWindowsResultPreservesCopyOnlyDropContract(t *testing.T) {
+	tests := []struct {
+		name           string
+		dropped        bool
+		returnedEffect Effect
+		want           Result
+	}{
+		{name: "copy drop", dropped: true, returnedEffect: EffectCopy, want: Dropped},
+		{name: "none effect", dropped: true, returnedEffect: EffectNone, want: Cancelled},
+		{name: "move effect", dropped: true, returnedEffect: EffectMove, want: Cancelled},
+		{name: "cancelled drag", returnedEffect: EffectCopy, want: Cancelled},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := legacyWindowsResult(test.dropped, test.returnedEffect); got != test.want {
+				t.Fatalf("legacyWindowsResult()=%q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestValidateOptionsRejectsEmptyAllowedEffects(t *testing.T) {
 	options := Options{PreferredEffect: EffectCopy}
 	if err := validateOptions(options, EffectSetCopy); err == nil {
