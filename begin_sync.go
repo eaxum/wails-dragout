@@ -4,8 +4,8 @@ package dragout
 
 import "unsafe"
 
-// Begin delivers completion on the UI thread after the synchronous backend returns.
-func Begin(window unsafe.Pointer, paths []string, complete func(Result, error)) {
-	result, err := start(window, paths)
-	complete(result, err)
+// beginWithOptions delivers completion on the UI thread after the synchronous backend returns.
+func beginWithOptions(window unsafe.Pointer, paths []string, options Options, complete func(Effect, error)) {
+	effect, err := startWithOptions(window, paths, options)
+	complete(effect, err)
 }

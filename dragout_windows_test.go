@@ -35,6 +35,20 @@ func TestShellDataObject(t *testing.T) {
 	}
 }
 
+func TestPreferredDropEffectFormatRoundTrip(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	path := filepath.Join(t.TempDir(), "preferred-effect.txt")
+	if err := os.WriteFile(path, []byte("fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, effect := range []Effect{EffectCopy, EffectMove, EffectLink} {
+		if err := probePreferredEffect([]string{path}, effect); err != nil {
+			t.Fatalf("effect %d: %v", effect, err)
+		}
+	}
+}
+
 func TestEncodePathsRejectsInvalidInput(t *testing.T) {
 	for _, paths := range [][]string{nil, {"relative.blend"}, {"C:\\bad\x00.blend"}} {
 		if _, err := encodePaths(paths); err == nil {
