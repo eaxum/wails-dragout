@@ -70,7 +70,7 @@ static HRESULT fileDataObject(const uint16_t *paths, size_t count, IDataObject *
     return result;
 }
 
-static HRESULT setDropEffect(IDataObject *data, const wchar_t *name, DWORD effect) {
+static HRESULT setDropEffect(IDataObject *data, const wchar_t *name, uint32_t effect) {
     FORMATETC format = {RegisterClipboardFormatW(name), NULL,
         DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
     if (!format.cfFormat) {
@@ -81,7 +81,7 @@ static HRESULT setDropEffect(IDataObject *data, const wchar_t *name, DWORD effec
     medium.tymed = TYMED_HGLOBAL;
     medium.hGlobal = GlobalAlloc(GMEM_MOVEABLE, sizeof(effect));
     if (!medium.hGlobal) return E_OUTOFMEMORY;
-    DWORD *value = GlobalLock(medium.hGlobal);
+    uint32_t *value = GlobalLock(medium.hGlobal);
     if (!value) {
         ReleaseStgMedium(&medium);
         return E_OUTOFMEMORY;
@@ -93,11 +93,11 @@ static HRESULT setDropEffect(IDataObject *data, const wchar_t *name, DWORD effec
     return result;
 }
 
-static HRESULT setPreferredDropEffect(IDataObject *data, DWORD effect) {
+static HRESULT setPreferredDropEffect(IDataObject *data, uint32_t effect) {
     return setDropEffect(data, L"Preferred DropEffect", effect);
 }
 
-static BOOL readDropEffect(IDataObject *data, const wchar_t *name, DWORD *effect) {
+static BOOL readDropEffect(IDataObject *data, const wchar_t *name, uint32_t *effect) {
     CLIPFORMAT clipboardFormat = RegisterClipboardFormatW(name);
     if (!clipboardFormat) return FALSE;
     FORMATETC format = {clipboardFormat, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
@@ -105,7 +105,7 @@ static BOOL readDropEffect(IDataObject *data, const wchar_t *name, DWORD *effect
     if (FAILED(IDataObject_GetData(data, &format, &medium))) return FALSE;
     BOOL available = FALSE;
     if (medium.tymed == TYMED_HGLOBAL && medium.hGlobal && GlobalSize(medium.hGlobal) >= sizeof(*effect)) {
-        const DWORD *value = GlobalLock(medium.hGlobal);
+        const uint32_t *value = GlobalLock(medium.hGlobal);
         if (value) {
             *effect = *value;
             GlobalUnlock(medium.hGlobal);
@@ -300,7 +300,7 @@ int32_t clustta_probe_preferred_effect(const uint16_t *paths, size_t count, uint
     if (SUCCEEDED(result)) {
         result = setPreferredDropEffect(data, effect);
         if (SUCCEEDED(result)) {
-            DWORD actual = DROPEFFECT_NONE;
+            uint32_t actual = DROPEFFECT_NONE;
             if (!readDropEffect(data, L"Preferred DropEffect", &actual) || actual != effect) result = E_FAIL;
         }
         IDataObject_Release(data);
@@ -323,7 +323,7 @@ int32_t clustta_probe_drop_effect_formats(const uint16_t *paths, size_t count,
         result = setDropEffect(data, L"Performed DropEffect", performedEffect);
     }
     if (SUCCEEDED(result)) {
-        DWORD actual = DROPEFFECT_NONE;
+        uint32_t actual = DROPEFFECT_NONE;
         BOOL available = readDropEffect(data, L"Logical Performed DropEffect", &actual);
         if (available != (BOOL)hasLogicalEffect || (available && actual != logicalEffect)) result = E_FAIL;
         if (SUCCEEDED(result)) {
