@@ -45,6 +45,7 @@ The host must verify access, asset/path associations, and project path containme
 - `dragout.BeginWithOptions(window, paths, options, complete)` opts into effect negotiation. Set `AllowedEffects` to a subset of `SupportedEffects()` and `PreferredEffect` to one of those effects. On Windows, the preference is advisory; Explorer uses it for an unmodified drag, while Ctrl requests Copy, Shift requests Move, and Alt requests Link when those effects are allowed.
 - The new callback reports `EffectCopy`, `EffectMove`, `EffectLink`, or `EffectNone`. `EffectNone` means cancellation or an accepted drop with no reliable effect report. Do not use it—or the legacy `Dropped` result—as permission to delete source files. This package does not delete source paths.
 - `wailsdrag.Start(ctx, window, paths)` handles main-thread dispatch and returns a `dragout.Result` or error.
+- `wailsdrag.StartWithOptions(ctx, window, paths, options)` dispatches the effect-aware API from a service goroutine and returns `dragout.Effect` or an error. Prefer Move when it is supported and permit the effects your caller needs.
 - `dragout.Dropped` means the native drag was accepted. It does not guarantee the target has completed importing/copying.
 - `dragout.Cancelled` covers cancellation or rejection. Unsupported builds return `dragout.ErrUnsupported`.
 

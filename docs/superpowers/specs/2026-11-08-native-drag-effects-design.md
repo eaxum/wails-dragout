@@ -16,7 +16,7 @@ Extend `wails-dragout` with a platform-neutral way to request and report Copy, M
 
 - Deleting or moving the source files in this library.
 - Implementing Move/Link on macOS or Linux.
-- Changing Wails integration or adding application-specific policy.
+- Changing existing `wails.Start` copy-only behavior or adding application-specific permission policy.
 
 ## Constraints
 
@@ -34,6 +34,8 @@ Extend `wails-dragout` with a platform-neutral way to request and report Copy, M
 ## Design
 
 Export `EffectNone`, `EffectCopy`, `EffectMove`, and `EffectLink` with the Windows OLE bit values 0, 1, 2, and 4. `Effects` is a bit set with `EffectSetCopy`, `EffectSetMove`, `EffectSetLink`, and `EffectSetAll`. `Options` contains `AllowedEffects` and `PreferredEffect`. `SupportedEffects()` reports the current build's capabilities, and `BeginWithOptions(window, paths, options, complete func(Effect, error))` validates requests before dispatching to a backend.
+
+Add `wails.StartWithOptions(ctx, window, paths, options) (Effect, error)` as the service-goroutine adapter for `BeginWithOptions`. It dispatches to the Wails UI thread and waits for completion while leaving existing `wails.Start` unchanged.
 
 `BeginWithOptions` reports the selected operation through its effect callback. Internally, each backend also preserves the native `Dropped`/`Cancelled` result so legacy `Begin` can retain its existing status behavior independently of effect certainty. On Windows, legacy `Begin` remains `Dropped` only when `DoDragDrop` returns `DRAGDROP_S_DROP` with returned effect `COPY`.
 

@@ -56,10 +56,10 @@
 - Produces the Windows `startWithOptions` native bridge consumed by Task 3.
 
 - [x] Add focused Windows checks for preferred-effect advertisement and outcome selection, including native completion-format round trips for logical/optimized and performed/unoptimized moves.
-- [ ] Run the focused Windows checks and confirm they fail for the missing negotiation/result handling (blocked locally: no Windows C compiler is installed).
+- [x] Run the focused Windows checks; the first cgo compile exposed `DWORD*`/`uint32_t*` incompatibility, fixed by using `uint32_t` for 32-bit clipboard payloads.
 - [x] Pass allowed effects to `DoDragDrop`; advertise the preferred Shell effect while preserving Shell file formats and its completion `SetData` notifications.
 - [x] Resolve the returned operation in the order specified by the design and return unknown when no reliable effect exists.
-- [ ] Run the focused Windows checks and confirm all outcome cases pass (blocked locally: no Windows C compiler is installed).
+- [x] Run the focused Windows checks with Windows cgo enabled; all preferred/completion format round trips passed.
 
 ### Task 3: Keep non-Windows backends explicitly Copy-only
 
@@ -80,13 +80,28 @@
 - [x] Add checks that Move/Link requests are rejected on copy-only platforms and accepted Copy requests report Copy.
 - [x] Run focused platform checks and confirm unsupported-effect checks fail before implementation (new API test first failed because `BeginWithOptions` was not yet defined).
 - [x] Implement the copy-only adapters and unsupported-build behavior.
-- [x] Run `go test ./... -count=1` for the available Windows/amd64 no-cgo build; supported cgo backends require a C toolchain not installed here.
+- [x] Run `go test ./... -count=1` on Windows/amd64 with cgo enabled; the Windows backend passed. Darwin/Linux cgo builds remain platform-specific.
 
-### Task 4: Document capabilities, compatibility, and safe completion handling
+### Task 4: Expose effect options through the Wails adapter
+
+**Files:**
+- Modify: `wails/adapter.go`
+- Create: `wails/adapter_test.go`
+
+**Interfaces:**
+- Consumes Task 1's `Options` and `Effect` and Task 3's `BeginWithOptions`.
+- Produces `StartWithOptions(ctx context.Context, window *application.WebviewWindow, paths []string, options dragout.Options) (dragout.Effect, error)` without changing legacy `Start`.
+
+- [x] Add a test proving a cancelled context returns before native initiation.
+- [x] Run the focused adapter test and confirm it fails before the adapter exists.
+- [x] Implement UI-thread dispatch and completion waiting in `wails/adapter.go`.
+- [x] Run the focused adapter test and the full Wails-dragout tests (30 passed in 2 packages with Windows cgo enabled).
+
+### Task 5: Document capabilities, compatibility, and safe completion handling
 
 **Files:**
 - Modify: `README.md`
 
 - [x] Document the new options/capability API, Windows effects, copy-only compatibility path, and the rule that unknown outcomes must not trigger source deletion.
-- [x] Run `go test ./... -count=1` (23 passed in 2 packages); a Windows cgo build/test is blocked because no C compiler is available.
+- [x] Run `go test ./... -count=1` (30 passed in 2 packages with Windows cgo enabled and 15 popup tests passed); build the Windows popup helper from the OrganizerV2 worktree.
 - [x] Review the final diff against the design and check for whitespace errors.
