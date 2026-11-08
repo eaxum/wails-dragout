@@ -70,6 +70,52 @@ static HRESULT fileDataObject(const uint16_t *paths, size_t count, IDataObject *
     return result;
 }
 
+static HRESULT setDropEffect(IDataObject *data, const wchar_t *name, uint32_t effect) {
+    FORMATETC format = {RegisterClipboardFormatW(name), NULL,
+        DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
+    if (!format.cfFormat) {
+        DWORD error = GetLastError();
+        return error ? HRESULT_FROM_WIN32(error) : E_FAIL;
+    }
+    STGMEDIUM medium = {0};
+    medium.tymed = TYMED_HGLOBAL;
+    medium.hGlobal = GlobalAlloc(GMEM_MOVEABLE, sizeof(effect));
+    if (!medium.hGlobal) return E_OUTOFMEMORY;
+    uint32_t *value = GlobalLock(medium.hGlobal);
+    if (!value) {
+        ReleaseStgMedium(&medium);
+        return E_OUTOFMEMORY;
+    }
+    *value = effect;
+    GlobalUnlock(medium.hGlobal);
+    HRESULT result = IDataObject_SetData(data, &format, &medium, TRUE);
+    if (FAILED(result)) ReleaseStgMedium(&medium);
+    return result;
+}
+
+static HRESULT setPreferredDropEffect(IDataObject *data, uint32_t effect) {
+    return setDropEffect(data, L"Preferred DropEffect", effect);
+}
+
+static BOOL readDropEffect(IDataObject *data, const wchar_t *name, uint32_t *effect) {
+    CLIPFORMAT clipboardFormat = RegisterClipboardFormatW(name);
+    if (!clipboardFormat) return FALSE;
+    FORMATETC format = {clipboardFormat, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
+    STGMEDIUM medium = {0};
+    if (FAILED(IDataObject_GetData(data, &format, &medium))) return FALSE;
+    BOOL available = FALSE;
+    if (medium.tymed == TYMED_HGLOBAL && medium.hGlobal && GlobalSize(medium.hGlobal) >= sizeof(*effect)) {
+        const uint32_t *value = GlobalLock(medium.hGlobal);
+        if (value) {
+            *effect = *value;
+            GlobalUnlock(medium.hGlobal);
+            available = TRUE;
+        }
+    }
+    ReleaseStgMedium(&medium);
+    return available;
+}
+
 static const LONG DragIconSize = 32;
 static const UINT DragBitmapBits = 32;
 static const UINT FullAlpha = 255;
@@ -159,7 +205,22 @@ static HRESULT attachFileIcon(const uint16_t *paths, IDataObject *data) {
     return result;
 }
 
-int32_t clustta_drag_files(uintptr_t handle, const uint16_t *paths, size_t count) {
+int32_t clustta_drag_files(uintptr_t handle, const uint16_t *paths, size_t count,
+    uint32_t allowedEffects, uint32_t preferredEffect, uint32_t *returnedEffect,
+    uint32_t *logicalEffect, int32_t *hasLogicalEffect,
+    uint32_t *performedEffect, int32_t *hasPerformedEffect) {
+    if (!returnedEffect || !logicalEffect || !hasLogicalEffect || !performedEffect || !hasPerformedEffect) {
+        return E_POINTER;
+    }
+    const DWORD validEffects = DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK;
+    *returnedEffect = DROPEFFECT_NONE;
+    *logicalEffect = DROPEFFECT_NONE;
+    *hasLogicalEffect = FALSE;
+    *performedEffect = DROPEFFECT_NONE;
+    *hasPerformedEffect = FALSE;
+    if (!allowedEffects || (allowedEffects & ~validEffects) ||
+        !preferredEffect || (preferredEffect & (preferredEffect - 1)) ||
+        !(allowedEffects & preferredEffect)) return E_INVALIDARG;
     HWND window = (HWND)handle;
     if (!IsWindow(window) || GetForegroundWindow() != window || GetAsyncKeyState(VK_LBUTTON) >= 0) {
         return DRAGDROP_S_CANCEL;
@@ -183,8 +244,13 @@ int32_t clustta_drag_files(uintptr_t handle, const uint16_t *paths, size_t count
             if (GetAsyncKeyState(VK_LBUTTON) >= 0) {
                 result = DRAGDROP_S_CANCEL;
             } else {
-                result = DoDragDrop(data, &source->base, DROPEFFECT_COPY, &effect);
-                if (result == DRAGDROP_S_DROP && effect != DROPEFFECT_COPY) result = DRAGDROP_S_CANCEL;
+                result = setPreferredDropEffect(data, preferredEffect);
+                if (SUCCEEDED(result)) result = DoDragDrop(data, &source->base, allowedEffects, &effect);
+                if (result == DRAGDROP_S_DROP) {
+                    *returnedEffect = effect;
+                    *hasLogicalEffect = readDropEffect(data, L"Logical Performed DropEffect", logicalEffect);
+                    *hasPerformedEffect = readDropEffect(data, L"Performed DropEffect", performedEffect);
+                }
             }
             sourceRelease(&source->base);
         }
@@ -222,6 +288,51 @@ int32_t clustta_probe_drag_files(const uint16_t *paths, size_t count) {
         }
         IDataObject_Release(data);
     }
+    OleUninitialize();
+    return result;
+}
+
+int32_t clustta_probe_preferred_effect(const uint16_t *paths, size_t count, uint32_t effect) {
+    HRESULT result = OleInitialize(NULL);
+    if (FAILED(result)) return result;
+    IDataObject *data = NULL;
+    result = fileDataObject(paths, count, &data);
+    if (SUCCEEDED(result)) {
+        result = setPreferredDropEffect(data, effect);
+        if (SUCCEEDED(result)) {
+            uint32_t actual = DROPEFFECT_NONE;
+            if (!readDropEffect(data, L"Preferred DropEffect", &actual) || actual != effect) result = E_FAIL;
+        }
+        IDataObject_Release(data);
+    }
+    OleUninitialize();
+    return result;
+}
+
+int32_t clustta_probe_drop_effect_formats(const uint16_t *paths, size_t count,
+    uint32_t logicalEffect, int32_t hasLogicalEffect,
+    uint32_t performedEffect, int32_t hasPerformedEffect) {
+    HRESULT result = OleInitialize(NULL);
+    if (FAILED(result)) return result;
+    IDataObject *data = NULL;
+    result = fileDataObject(paths, count, &data);
+    if (SUCCEEDED(result) && hasLogicalEffect) {
+        result = setDropEffect(data, L"Logical Performed DropEffect", logicalEffect);
+    }
+    if (SUCCEEDED(result) && hasPerformedEffect) {
+        result = setDropEffect(data, L"Performed DropEffect", performedEffect);
+    }
+    if (SUCCEEDED(result)) {
+        uint32_t actual = DROPEFFECT_NONE;
+        BOOL available = readDropEffect(data, L"Logical Performed DropEffect", &actual);
+        if (available != (BOOL)hasLogicalEffect || (available && actual != logicalEffect)) result = E_FAIL;
+        if (SUCCEEDED(result)) {
+            actual = DROPEFFECT_NONE;
+            available = readDropEffect(data, L"Performed DropEffect", &actual);
+            if (available != (BOOL)hasPerformedEffect || (available && actual != performedEffect)) result = E_FAIL;
+        }
+    }
+    if (data) IDataObject_Release(data);
     OleUninitialize();
     return result;
 }

@@ -40,10 +40,16 @@ The host must verify access, asset/path associations, and project path containme
 ## API and completion
 
 - `dragout.Available` reports compiled platform support. It does not certify desktop/compositor compatibility.
+- `dragout.SupportedEffects()` reports the operations implemented by the current build. Windows supports Copy, Move, and Link; macOS and Linux remain Copy-only in this release.
 - `dragout.Begin(window, paths, complete)` starts on the platform UI thread. `window` is a Windows HWND, macOS NSWindow, or Linux GtkWindow pointer. The non-nil completion callback must return promptly. Windows may block until OLE ends; macOS and Linux complete asynchronously. Completion may also occur immediately on failure.
+- `dragout.BeginWithOptions(window, paths, options, complete)` opts into effect negotiation. Set `AllowedEffects` to a subset of `SupportedEffects()` and `PreferredEffect` to one of those effects. On Windows, the preference is advisory; Explorer uses it for an unmodified drag, while Ctrl requests Copy, Shift requests Move, and Alt requests Link when those effects are allowed.
+- The new callback reports `EffectCopy`, `EffectMove`, `EffectLink`, or `EffectNone`. `EffectNone` means cancellation or an accepted drop with no reliable effect report. Do not use it—or the legacy `Dropped` result—as permission to delete source files. This package does not delete source paths.
 - `wailsdrag.Start(ctx, window, paths)` handles main-thread dispatch and returns a `dragout.Result` or error.
+- `wailsdrag.StartWithOptions(ctx, window, paths, options)` dispatches the effect-aware API from a service goroutine and returns `dragout.Effect` or an error. Prefer Move when it is supported and permit the effects your caller needs.
 - `dragout.Dropped` means the native drag was accepted. It does not guarantee the target has completed importing/copying.
 - `dragout.Cancelled` covers cancellation or rejection. Unsupported builds return `dragout.ErrUnsupported`.
+
+The existing `Begin` and `wailsdrag.Start` APIs remain Copy-only and keep their `Dropped`/`Cancelled` result. Callers that need the actual operation should use `BeginWithOptions` and act only on a confirmed effect. Windows honors Explorer's native modifier-key negotiation when the requested effects permit it; on other supported platforms, requests for Move or Link return `dragout.ErrUnsupportedEffect`.
 
 Context cancellation is checked before initiation. Once started, the adapter waits for native completion even if the context is cancelled, preserving resource lifetime and the host's session guard. Escape cancellation is handled by the OS. There is no separate programmatic cancellation API.
 
